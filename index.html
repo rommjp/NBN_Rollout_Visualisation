@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<!--
+Author: Rommel Poggenberg (29860571)
+Subject: FIT5147 (TP2 2021)
+Web app displaying visualization of NBN Rollout with Access Coverage Maps using d3 library.
+Coverage maps range from HFC, FTTP, FTTN, FTTC and Fixed Wireless technologies.
+Comparing Area ID Ready For Service Dates against the NBN Rollout Completion deadline.
+-->
+<style>
+path {
+  stroke: white;
+  stroke-width: 0.25px;
+  fill: grey;
+}
+svg {
+	background: lightBlue;
+}
+.axis path,
+.axis line {
+    fill: none;
+    stroke: grey;
+    stroke-width: 1;
+}
+div.tooltip {	
+    position: absolute;			
+    text-align: center;			
+    width: 80px;					
+    height: 28px;					
+    padding: 2px;				
+    font: 12px sans-serif;		
+    background: lightsteelblue;	
+    border: 0px;		
+    border-radius: 8px;			
+    pointer-events: none;			
+}
+
+</style>
+<div class="w3-container w3-teal w3-margin-bottom">
+  <h1>NBN Build Schedule <small>(deadline 30th June 2020 [1])</small></h1>
+		State(Map):<select id='state_id'>
+			<option value='act' select>Australian Capital Territory</option>
+			<option value='nsw'>New South Wales</option>
+			<option value='nt'>Northern Territory</option>
+			<option value='ql'>Queensland</option>
+			<option value='sa'>South Australia</option>
+			<option value='tas'>Tasmania</option>
+			<option value='vic'>Victoria</option>
+			<option value='wa'>Western Australia</option>
+			</select>
+		Technology(Map):<select id='tech_id'>
+			<option value='hfc' select>Hybrid Fibre Coaxial (HFC)</option>
+			<option value='fttb'>Fibre to the Basement</option>
+			<option value='fttc'>Fibre to the Curb</option>
+			<option value='fttn'>Fibre to the Node</option>
+			<option value='fttp'>Fibre to the Premises</option>
+			<option value='fixed_wireless'>Fixed Wireless</option>
+			</select>			
+		Schedule(Chart):<select id='schedule_id'>
+			<option value='ontime'>On Schedule</option>
+			<option value='after'>After Deadline</option>
+			<option value='all'>All Time</option>
+			</select>
+		<button id='filter_id' type='button' enabled>Refresh Display</button>  
+</div>
+<body>
+
+
+<div class="w3-row w3-container">
+<div id="map" class="w3-half w3-container"></div>
+<div id="bar" class="w3-half w3-container"></div>
+<div id="tbl" class="w3-panel w3-light-grey w3-half w3-container" style="width:860px">
+	<div id="area_id">Area_ID:</div>
+	<div id="tech_type_id">Technology_Type:</div>
+	<div id="service_status_id">Service_Status:</div>
+	<div id="rfs_date_id">Ready_for_Service_Date:</div>
+	<div id="tble_state_id">State:</div>	
+</div>
+</div>
+<div id='note_id' align='center' style="font-family:arial;font-size:10px;"></div>
+<a href="https://www.nbnco.com.au/content/dam/nbnco2/2018/documents/media-centre/corporate-plan-report-2019-2022.pdf">[1]</a> Source: NBN Corporate Plan 2019-2022
+<br><a href="https://data.gov.au/data/dataset/c79b2219-7e1f-46a9-961f-e87668122f02">[2]</a> Data source: National Broadband Network: Connections by technology type – July 2020
+<br> Contact Site Creator: <a href='mailto:rpog0001@student.monash.edu'>Rommel Poggenberg</a>
+</div>
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<script src="https://d3js.org/topojson.v0.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script>
+$(document).ready(function() {	
+
+	var width = 860,
+		height = 600;
+	var margin = {top: 50, right: 50, bottom: 220, left: 100},
+		barW = 860 - margin.left - margin.right,
+		barH = 600 - margin.top - margin.bottom;
+	var projection = d3.geo.mercator()
+		.center([140, -25 ])
+		.scale(800)
+		//.rotate([-180,0]);
+
+	var svg = d3.select("#map").append("svg")
+		.attr("width", width)
+		.attr("height", height);
+
+	// Parse the date / time
+	var	parseDate = d3.time.format("%Y-%m").parse;
+
+	var path = d3.geo.path()
+		.projection(projection);
+
+	var g = svg.append("g");
+	
+		
+	// load and display the World
+	d3.json("world.json", function(error, topology) {
+	var div = d3.select("body").append("div")	
+		.attr("class", "tooltip")				
+		.style("opacity", 0);
+
+	//Data to fresh every time refresh button is pressed
+	$("#filter_id").click(function() {
+		//Get filter data
+		input_data={};
+		input_data['state']=$('#state_id').prop('selected', true).val();
+		input_data['tech']=$('#tech_id').prop('selected', true).val();
+		input_data['schedule']=$('#schedule_id').prop('selected', true).val();		
+		console.log(input_data);
+
+		$.ajax({
+			type: 'GET',
+			url: 'getAppdata.php',
+			data: input_data,
+			dataType: 'json',
+			success:function(response) {
+					$('#bar').html("");	
+					console.log(response)	
+					data=response['map'];		
+					
+		
+					var marker_color="black";
+						
+					//outerData = data;
+					var sizeScale = d3.scale.linear().domain([0, d3.max(data, function(d) {
+						return (+d.markerscale);
+					})]).range([0.05, 0.25]);
+					var opacityScale = d3.scale.linear().domain([0, d3.max(data, function(d) {
+						return (+d.markerscale);
+					})]).range([1, 0.25]);
+					var x = d3.scale.ordinal().rangeRoundBands([1, barW], .5);
+
+					var y = d3.scale.pow()
+						.domain([0, 1e2])
+						.range([barH, 0])
+						.exponent(2);
+						
+					var xAxis = d3.svg.axis()
+					.scale(x)
+					.orient("bottom");
+					//.tickFormat(d3.time.format("%Y-%m"));
+
+					var yAxis = d3.svg.axis()
+						.scale(y)
+						.orient("left")
+						.ticks(5)
+						.tickFormat(d3.format("d"));
+						
+						
+						
+						
+					g.selectAll("circle")
+					   .data(data)
+					   .enter()
+					   .append("circle")
+					   .attr("cx", function(d) {
+							   return projection([d.longitude, d.latitude])[0];
+					   })
+					   .attr("cy", function(d) {
+							   return projection([d.longitude, d.latitude])[1];
+					   })
+						.on("mouseover", function(d) {		
+							div.transition()		
+								.duration(200)		
+								.style("opacity", .9);		
+							div	.html(d.Area_ID)	
+								.style("left", (d3.event.pageX) + "px")		
+								.style("top", (d3.event.pageY - 28) + "px");	
+							})					
+						.on("mouseout", function(d) {		
+							div.transition()		
+								.duration(500)		
+								.style("opacity", 0);	
+						})
+						.on("click", function(d) {
+							svg.selectAll("rect")
+							.style("fill", function(m) { if(d.Technology_Type == m.Technology_Type) { return "lightBlue" } else { return "steelblue" } });
+							d3.select("#area_id").html("<b>Area_ID:</b> " + d.Area_ID);
+							d3.select("#tech_type_id").html("<b>Technology_Type:</b> " + d.Technology_Type);
+							d3.select("#service_status_id").html("<b>Service_Status:</b> " + d.Service_Status);
+							d3.select("#rfs_date_id").html("<b>Ready_for_Service_Date: </b>" + d.Ready_for_Service_Date);
+							d3.select("#tble_state_id").html("<b>State:</b> " + d.state);
+						
+						})
+					   .attr("r", function(d) { return sizeScale(+d.markerscale); })
+					   .attr("opacity", function(d) { return opacityScale(+d.markerscale); })
+					   .style("fill", function(d) {	if (d.Technology_Type=="Hybrid Fibre Coaxial (HFC)"){
+													marker_color="red";
+													}else if (d.Technology_Type=="Fibre to the Node"){
+													marker_color="blue";}
+													else if (d.Technology_Type=="Fibre to the Premises"){
+													marker_color="green";}
+													else if (d.Technology_Type=="Fibre to the Curb"){
+													marker_color="yellow";}
+													else if (d.Technology_Type=="Fibre to the Basement"){
+													marker_color="purple";}
+													else if (d.Technology_Type=="Fixed Wireless"){
+													marker_color="black";}													
+													return marker_color;
+												});
+												
+						// Draw Barchart
+					drawBarChart(response['chart'], input_data['schedule']);								
+					   
+													   
+				},
+				error: function(xhr, textStatus, errorThrown) {
+					alert("ERROR!!!  Contact Administrator.  Message: "+errorThrown);
+				}   
+			});
+
+
+			g.selectAll("path")
+				  .data(topojson.object(topology, topology.objects.countries)
+					  .geometries)
+				.enter()
+				  .append("path")
+				  .attr("d", path)
+								
+		});
+	
+	});
+
+
+		// zoom and pan
+		var zoom = d3.behavior.zoom()
+			.on("zoom",function() {
+				g.attr("transform","translate("+ 
+					d3.event.translate.join(",")+")scale("+d3.event.scale+")");
+				g.selectAll("circle")
+					.attr("d", path.projection(projection));
+				g.selectAll("path")  
+					.attr("d", path.projection(projection)); 
+
+		  });
+
+		svg.call(zoom)
+
+});
+
+function drawBarChart(data, schedule){
+
+	console.log(data);
+	
+	var margin = {top: 20, right: 240, bottom: 45, left: 50};
+
+	var width = 960 - margin.left - margin.right,
+		height = 600 - margin.top - margin.bottom;
+
+	var svg = d3.select("#bar")
+	  .append("svg")
+	  .attr("width", width + margin.left + margin.right)
+	  .attr("height", height + margin.top + margin.bottom)
+	  .append("g")
+	  .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+
+	// Load bar data from a mongodb
+	//$.getJSON("tech_data.json", function(data) {
+		//console.log(data);
+		
+		var chart_title="";
+
+		var parse = d3.time.format("%Y").parse;
+
+
+		// Transpose the data into layers
+		var dataset = d3.layout.stack()(["Fibre to the Basement", "Fibre to the Curb", "Fibre to the Node", "Fibre to the Premises", "Fixed Wireless","Hybrid Fibre Coaxial (HFC)"].map(function(tech) {
+		  return data.map(function(d) {
+			return {x: parse(d.year), y: +d[tech]};
+		  });
+		}));
+
+
+		// Set x, y and colors
+		var x = d3.scale.ordinal()
+		  .domain(dataset[0].map(function(d) { return d.x; }))
+		  .rangeRoundBands([10, width-10], 0.02);
+
+		var y = d3.scale.linear()
+		  .domain([0, d3.max(dataset, function(d) {  return d3.max(d, function(d) { return d.y0 + d.y; });  })]).nice()
+		  .range([height, 0])
+		  .rangeRound([height, 0])
+		  .interpolate(d3.interpolateRound);
+
+		//Technology colors
+		var colors = ["b33040", "#d25c4d", "#f2b447", "#d9d574","#0000ff","#00ffbf"];
+
+
+		// Define and draw axes
+		var yAxis = d3.svg.axis()
+		  .scale(y)
+		  .orient("left")
+		  .ticks(5)
+		  .tickSize(-width, 0, 0)
+		  .tickFormat( d3.format("s"));
+
+		var xAxis = d3.svg.axis()
+		  .scale(x)
+		  .orient("bottom")
+		  .tickFormat(d3.time.format("%Y"));
+
+		//Create Y Axis
+		svg.append("g")
+		  .attr("class", "y axis")
+		  .call(yAxis);
+
+		//Create X Axis
+		svg.append("g")
+		  .attr("class", "x axis")
+		  .attr("transform", "translate(0," + height + ")")
+		  .call(xAxis);
+
+		//Create Chart Title 
+		
+		if (schedule=='ontime'){
+			chart_title="Area IDs completed on schedule"
+		}else if (schedule=='after'){
+			chart_title="Area IDs to be built after deadline"
+		}else if (schedule=='all'){
+			chart_title="Area IDs full build schedule"
+		}
+		
+		svg.append("text")
+		.attr("x", width / 2 )
+		.attr("y", 0)
+		.attr("font-size", "15px")
+		.attr("font-weight", "bold")
+		.style("text-anchor", "middle")
+		.text(chart_title);
+			   
+		//Create X axis label   
+		svg.append("text")
+		.attr("x", width / 2 )
+		.attr("y",  height + margin.bottom)
+		.style("text-anchor", "middle")
+		.text("Ready For Service (Completed) Year");		   
+			   
+			   
+		//Create Y axis label
+		svg.append("text")
+		.attr("transform", "rotate(-90)")
+		.attr("y", 0-margin.left)
+		.attr("x",0 - (height / 2))
+		.attr("dy", "1em")
+		.style("text-anchor", "middle")
+		.text("Number of Area IDs Complete");		   
+
+		// Create groups for each series, rects for each segment 
+		var groups = svg.selectAll("g.cost")
+		  .data(dataset)
+		  .enter().append("g")
+		  .attr("class", "cost")
+		  .style("fill", function(d, i) { return colors[i]; });
+
+		var rect = groups.selectAll("rect")
+		  .data(function(d) { return d; })
+		  .enter()
+		  .append("rect")
+		  .attr("x", function(d) { return x(d.x); })
+		  .attr("y", function(d) { return y(d.y0 + d.y); })
+		  .attr("height", function(d) { return y(d.y0) - y(d.y0 + d.y); })
+		  .attr("width", x.rangeBand())
+		  .on("mouseover", function() { tooltip.style("display", null); })
+		  .on("mouseout", function() { tooltip.style("display", "none"); })
+		  .on("mousemove", function(d) {
+			var xPosition = d3.mouse(this)[0] - 15;
+			var yPosition = d3.mouse(this)[1] - 25;
+			tooltip.attr("transform", "translate(" + xPosition + "," + yPosition + ")");
+			tooltip.select("text").text(d.y);
+		  });
+
+
+		// Draw legend
+		var legend = svg.selectAll(".legend")
+		  .data(colors)
+		  .enter().append("g")
+		  .attr("class", "legend")
+		  .attr("transform", function(d, i) { return "translate(30," + i * 19 + ")"; });
+		 
+		legend.append("rect")
+		  .attr("x", width - 18)
+		  .attr("width", 18)
+		  .attr("height", 18)
+		  .style("fill", function(d, i) {return colors.slice().reverse()[i];});
+		 
+		legend.append("text")
+		  .attr("x", width + 5)
+		  .attr("y", 9)
+		  .attr("dy", ".35em")
+		  .style("text-anchor", "start")
+		  .text(function(d, i) { 
+			switch (i) {
+			  case 0: return "Fibre to the Basement";
+			  case 1: return "Fibre to the Curb";
+			  case 2: return "Fibre to the Node";
+			  case 3: return "Fibre to the Premises";
+			  case 4: return "Fixed Wireless";
+			  case 5: return "Hybrid Fibre Coaxial (HFC)";
+			}
+		  });
+
+
+		// Configure the tooltip
+		var tooltip = svg.append("g")
+		  .attr("class", "tooltip")
+		  .style("display", "none");
+			
+		tooltip.append("rect")
+		  .attr("width", 30)
+		  .attr("height", 20)
+		  .attr("fill", "white")
+		  .style("opacity", 0.5);
+
+		tooltip.append("text")
+		  .attr("x", 15)
+		  .attr("dy", "1.2em")
+		  .style("text-anchor", "middle")
+		  .attr("font-size", "12px")
+		  .attr("font-weight", "bold");
+	//});
+	  
+}
+
+</script>
+</body>
+</html>
