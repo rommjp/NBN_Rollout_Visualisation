@@ -167,7 +167,7 @@ $(document).ready(function() {
 						
 						
 						
-						
+					//Draw markers on the map	
 					g.selectAll("circle")
 					   .data(data)
 					   .enter()
@@ -190,7 +190,7 @@ $(document).ready(function() {
 							div.transition()		
 								.duration(500)		
 								.style("opacity", 0);	
-						})
+						}) //Clicking on the marker point populates table showing details.
 						.on("click", function(d) {
 							svg.selectAll("rect")
 							.style("fill", function(m) { if(d.Technology_Type == m.Technology_Type) { return "lightBlue" } else { return "steelblue" } });
@@ -257,10 +257,9 @@ $(document).ready(function() {
 
 });
 
+//Function to draw a barchart passing data from previous filter refresh
 function drawBarChart(data, schedule){
 
-	//console.log(data);
-	
 	var margin = {top: 20, right: 240, bottom: 45, left: 50};
 
 	var width = 960 - margin.left - margin.right,
@@ -273,8 +272,6 @@ function drawBarChart(data, schedule){
 	  .append("g")
 	  .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-
-	// Load bar data from a mongodb		
 		var chart_title="";
 
 		var parse = d3.time.format("%Y").parse;
