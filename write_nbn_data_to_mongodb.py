@@ -2,7 +2,7 @@
 Script to process nbn coverage map csv files, transform and load into a MongoDB
 
 Author: Rommel Poggenberg (29860571)
-Date created: 19th April 2021 (TP2 2021)
+Date created: 19th April 2021 (FIT5147 TP2 2021)
 '''
 
 import csv

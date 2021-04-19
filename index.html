@@ -125,7 +125,7 @@ $(document).ready(function() {
 		input_data['state']=$('#state_id').prop('selected', true).val();
 		input_data['tech']=$('#tech_id').prop('selected', true).val();
 		input_data['schedule']=$('#schedule_id').prop('selected', true).val();		
-		console.log(input_data);
+		//console.log(input_data);
 
 		$.ajax({
 			type: 'GET',
@@ -134,7 +134,7 @@ $(document).ready(function() {
 			dataType: 'json',
 			success:function(response) {
 					$('#bar').html("");	
-					console.log(response)	
+					//console.log(response)	
 					data=response['map'];		
 					
 		
@@ -259,7 +259,7 @@ $(document).ready(function() {
 
 function drawBarChart(data, schedule){
 
-	console.log(data);
+	//console.log(data);
 	
 	var margin = {top: 20, right: 240, bottom: 45, left: 50};
 
@@ -274,10 +274,7 @@ function drawBarChart(data, schedule){
 	  .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
 
-	// Load bar data from a mongodb
-	//$.getJSON("tech_data.json", function(data) {
-		//console.log(data);
-		
+	// Load bar data from a mongodb		
 		var chart_title="";
 
 		var parse = d3.time.format("%Y").parse;
@@ -331,7 +328,6 @@ function drawBarChart(data, schedule){
 		  .call(xAxis);
 
 		//Create Chart Title 
-		
 		if (schedule=='ontime'){
 			chart_title="Area IDs completed on schedule"
 		}else if (schedule=='after'){
@@ -436,9 +432,7 @@ function drawBarChart(data, schedule){
 		  .attr("dy", "1.2em")
 		  .style("text-anchor", "middle")
 		  .attr("font-size", "12px")
-		  .attr("font-weight", "bold");
-	//});
-	  
+		  .attr("font-weight", "bold");	  
 }
 
 </script>
